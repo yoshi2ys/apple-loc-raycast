@@ -16,16 +16,34 @@ import { useCallback, useRef } from "react";
 interface Preferences {
   cliPath?: string;
   dbPath?: string;
+  resultLimit?: string;
+  fuzzy: boolean;
+}
+
+function expandTilde(p: string): string {
+  if (p.startsWith("~/")) return `${process.env.HOME}${p.slice(1)}`;
+  return p;
 }
 
 export function getCliPath(): string {
   const { cliPath } = getPreferenceValues<Preferences>();
-  return cliPath || `${process.env.HOME}/.local/bin/apple-loc`;
+  return expandTilde(cliPath || "~/.local/bin/apple-loc");
 }
 
 export function getDbPath(): string {
   const { dbPath } = getPreferenceValues<Preferences>();
-  return dbPath || `${process.env.HOME}/.apple-loc/apple-loc.db`;
+  return expandTilde(dbPath || "~/.apple-loc/apple-loc.db");
+}
+
+export function isFuzzyEnabled(): boolean {
+  return getPreferenceValues<Preferences>().fuzzy;
+}
+
+export function getResultLimit(): number | undefined {
+  const { resultLimit } = getPreferenceValues<Preferences>();
+  if (!resultLimit) return undefined;
+  const n = parseInt(resultLimit, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 export interface CLIInfo {
@@ -111,7 +129,8 @@ export interface CLIOutput {
 }
 
 export function buildArgs(opts: { db: string; platform?: string; langs?: string[] }): string[] {
-  const args: string[] = ["--limit", "20", "--db", opts.db];
+  const limit = getResultLimit();
+  const args: string[] = [...(limit ? ["--limit", String(limit)] : []), "--db", opts.db];
   if (opts.platform) args.push("--platform", opts.platform);
   if (opts.langs?.length) args.push("--lang", opts.langs.join(","));
   return args;
@@ -305,7 +324,7 @@ export function ResultListItem({
               <List.Item.Detail.Metadata.Label title="Platform" text={formatPlatformLabel(result.platform)} />
               <List.Item.Detail.Metadata.Separator />
               <List.Item.Detail.Metadata.TagList title="Bundles">
-                {[result.bundle_name, ...result.bundles.filter((b) => b !== result.bundle_name)].map((b) => (
+                {result.bundles.map((b) => (
                   <List.Item.Detail.Metadata.TagList.Item
                     key={b}
                     text={b}

@@ -17,37 +17,54 @@
     {
       "name": "cliPath",
       "title": "CLI Path",
-      "description": "Path to the apple-loc CLI binary",
-      "type": "file",
+      "description": "Path to the apple-loc CLI binary (default: ~/.local/bin/apple-loc)",
+      "type": "textfield",
       "required": false,
-      "default": ""
+      "placeholder": "~/.local/bin/apple-loc"
     },
     {
       "name": "dbPath",
       "title": "Database Path",
-      "description": "Path to the localization database file",
-      "type": "file",
+      "description": "Path to the localization database file (default: ~/.apple-loc/apple-loc.db)",
+      "type": "textfield",
       "required": false,
-      "default": ""
+      "placeholder": "~/.apple-loc/apple-loc.db"
+    },
+    {
+      "name": "resultLimit",
+      "title": "Result Limit",
+      "description": "Maximum number of results per query (default: 20)",
+      "type": "textfield",
+      "required": false,
+      "placeholder": "20"
+    },
+    {
+      "name": "fuzzy",
+      "title": "Fuzzy Matching",
+      "description": "Enable fuzzy (substring) matching for key and target lookups",
+      "type": "checkbox",
+      "required": false,
+      "default": true,
+      "label": "Enable fuzzy matching"
     }
   ],
   "commands": [
     {
       "name": "search-localizations",
       "title": "Search Text",
-      "description": "Search Apple localizations by translated text",
+      "description": "Find translations by meaning using semantic search",
       "mode": "view"
     },
     {
       "name": "lookup-by-key",
       "title": "Lookup by Key",
-      "description": "Lookup Apple localizations by source key",
+      "description": "Find translations by source key (substring match)",
       "mode": "view"
     },
     {
       "name": "lookup-by-target",
       "title": "Lookup by Target",
-      "description": "Lookup Apple localizations by translated text",
+      "description": "Reverse lookup source keys from translated text",
       "mode": "view"
     }
   ],

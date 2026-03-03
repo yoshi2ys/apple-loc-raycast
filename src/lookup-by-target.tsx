@@ -6,6 +6,7 @@ import {
   cliErrorHandler,
   getCliPath,
   getDbPath,
+  isFuzzyEnabled,
   parseCLIOutput,
   PlatformDropdown,
   ResultListItem,
@@ -28,6 +29,7 @@ export default function LookupByTarget() {
       "lookup",
       "--target",
       searchText,
+      ...(isFuzzyEnabled() ? ["--fuzzy"] : []),
       ...buildArgs({ platform: platform || undefined, langs: langs.length ? langs : undefined, db: dbPath }),
     ],
     {
