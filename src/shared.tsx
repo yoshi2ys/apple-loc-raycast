@@ -91,6 +91,15 @@ export function formatPlatformLabel(raw: string): string {
   return `${name} ${m[2]}`;
 }
 
+const langNames = new Intl.DisplayNames(["en"], { type: "language" });
+function langDisplayName(code: string): string {
+  try {
+    return langNames.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function PlatformDropdown({
   info,
   isLoading,
@@ -271,6 +280,32 @@ function formatStructuredTarget(obj: Record<string, unknown>): { groups: Structu
   return { groups };
 }
 
+interface TranslationEntry {
+  lang: string;
+  label: string;
+  text: string;
+}
+
+function flattenTranslations(translations: Record<string, TranslationValue>): TranslationEntry[] {
+  const entries: TranslationEntry[] = [];
+  const sortedLangs = Object.keys(translations).sort();
+  for (const lang of sortedLangs) {
+    const value = translations[lang];
+    if (isStructuredTarget(value)) {
+      const { groups } = formatStructuredTarget(value);
+      for (const group of groups) {
+        for (const [variant, text] of group.entries) {
+          const label = variant ? `${lang} [${group.title}.${variant}]` : `${lang} [${group.title}]`;
+          entries.push({ lang, label, text });
+        }
+      }
+    } else {
+      entries.push({ lang, label: lang, text: value as string });
+    }
+  }
+  return entries;
+}
+
 function getDeviceTagColor(
   platform: string,
   groupTitle: string,
@@ -293,6 +328,83 @@ function getDeviceTagColor(
   // variant === "other": fallback covers this platform only when no explicit key exists
   if (isMac) return allVariants.includes("mac") ? Color.SecondaryText : undefined;
   return allVariants.some((v) => v === "iphone" || v === "ipad" || v === "ipod") ? Color.SecondaryText : undefined;
+}
+
+function TranslationDetail({
+  result,
+  onAction,
+}: {
+  result: LocalizationResult;
+  onAction?: (result: LocalizationResult) => void;
+}) {
+  const cliPath = getCliPath();
+  const dbPath = getDbPath();
+
+  // Re-fetch without language filter to show all available translations
+  const { data: fullResult, isLoading } = useExec(
+    cliPath,
+    ["lookup", "--key", result.source, "--platform", result.platform, "--db", dbPath],
+    {
+      parseOutput: ({ stdout }) => {
+        const parsed = parseCLIOutput(stdout);
+        return parsed.results?.find((r) => r.bundle_name === result.bundle_name);
+      },
+      onError: cliErrorHandler(cliPath, dbPath),
+    },
+  );
+
+  const activeResult = fullResult ?? result;
+  const entries = flattenTranslations(activeResult.translations);
+  const allTranslationsText = entries.map((e) => `${e.label}: ${e.text}`).join("\n");
+
+  // Group entries by base language (e.g. en, en_US, en_AU → "en")
+  const langGroups: { base: string; entries: TranslationEntry[] }[] = [];
+  for (const entry of entries) {
+    const base = entry.lang.split("_")[0];
+    const last = langGroups[langGroups.length - 1];
+    if (last && last.base === base) {
+      last.entries.push(entry);
+    } else {
+      langGroups.push({ base, entries: [entry] });
+    }
+  }
+
+  return (
+    <List navigationTitle={result.source} isLoading={isLoading}>
+      {langGroups.map(({ base, entries: groupEntries }) => (
+        <List.Section key={base} title={langDisplayName(base)}>
+          {groupEntries.map((entry) => (
+            <List.Item
+              key={`${entry.lang}:${entry.label}`}
+              title={entry.label}
+              subtitle={entry.text}
+              keywords={[entry.text, langDisplayName(base)]}
+              actions={
+                <ActionPanel>
+                  <Action.CopyToClipboard
+                    title="Copy Translation"
+                    content={entry.text}
+                    onCopy={() => onAction?.(result)}
+                  />
+                  <Action.CopyToClipboard
+                    title="Copy Source Key"
+                    content={result.source}
+                    onCopy={() => onAction?.(result)}
+                  />
+                  <Action.CopyToClipboard
+                    title="Copy All Translations"
+                    content={allTranslationsText}
+                    shortcut={{ modifiers: ["cmd", "shift"], key: "a" }}
+                    onCopy={() => onAction?.(result)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      ))}
+    </List>
+  );
 }
 
 export function ResultListItem({
@@ -396,6 +508,11 @@ export function ResultListItem({
       }
       actions={
         <ActionPanel>
+          <Action.Push
+            title="View Translations"
+            icon={Icon.Eye}
+            target={<TranslationDetail result={result} onAction={onAction} />}
+          />
           <Action.CopyToClipboard title="Copy Source Key" content={result.source} onCopy={() => onAction?.(result)} />
           <Action.Paste title="Paste Source Key" content={result.source} onPaste={() => onAction?.(result)} />
           <ActionPanel.Submenu title="Copy Translation…" shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}>
